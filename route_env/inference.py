@@ -22,6 +22,7 @@ load_dotenv()
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4.1-mini")
 HF_TOKEN = os.getenv("HF_TOKEN")
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 NUM_TRAJECTORIES = int(os.getenv("NUM_TRAJECTORIES", "1"))
 MAX_STEPS_PER_TRAJECTORY = int(os.getenv("MAX_STEPS_PER_TRAJECTORY", "200"))
 USE_OPENLLM_AGENT = os.getenv("USE_OPENLLM_AGENT", "false").lower() in (
@@ -186,7 +187,11 @@ def run_episode() -> None:
             pass
         time.sleep(WAIT_FOR_SERVER_POLL_SECONDS)
     for trajectory_idx in range(1, trajectories + 1):
-        env = RouteEnv(base_url=ENV_BASE_URL)
+        env = (
+            RouteEnv.from_docker_image(LOCAL_IMAGE_NAME)
+            if LOCAL_IMAGE_NAME
+            else RouteEnv(base_url=ENV_BASE_URL)
+        )
         run_trajectory(env, trajectory_idx)
 
 
