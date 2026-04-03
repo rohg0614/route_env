@@ -7,10 +7,16 @@
 """Route Env Environment."""
 
 from .client import RouteEnv
+from .grader import score_episode
 from .models import RouteAction, RouteObservation
+from .tasks import TASKS, TASK_ORDER, TaskConfig
 
 __all__ = [
     "RouteAction",
     "RouteObservation",
     "RouteEnv",
+    "TaskConfig",
+    "TASKS",
+    "TASK_ORDER",
+    "score_episode",
 ]

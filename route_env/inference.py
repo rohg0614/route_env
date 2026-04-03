@@ -1,6 +1,9 @@
 import os
 import sys
 import json
+import time
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +29,16 @@ USE_OPENLLM_AGENT = os.getenv("USE_OPENLLM_AGENT", "false").lower() in (
     "true",
     "yes",
 )
-# Multi-trajectory evaluation is opt-in and controlled by NUM_TRAJECTORIES.
-# The script still emits only [START]/[STEP]/[END] line types for each trajectory.
+ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
+STRICT_SINGLE_EPISODE = os.getenv("STRICT_SINGLE_EPISODE", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+# Strict mode keeps exactly one [START] and one [END] per run for validators.
+
+WAIT_FOR_SERVER_SECONDS = float(os.getenv("WAIT_FOR_SERVER_SECONDS", "30"))
+WAIT_FOR_SERVER_POLL_SECONDS = float(os.getenv("WAIT_FOR_SERVER_POLL_SECONDS", "0.5"))
 
 if HF_TOKEN is None:
     raise ValueError("HF_TOKEN environment variable is required")
@@ -162,9 +173,20 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
 
 
 def run_episode() -> None:
-    trajectories = max(1, NUM_TRAJECTORIES)
+    trajectories = 1 if STRICT_SINGLE_EPISODE else max(1, NUM_TRAJECTORIES)
+    # If inference starts immediately after the Docker container, the server
+    # may still be initializing. Poll /health to avoid empty trajectories.
+    deadline = time.time() + WAIT_FOR_SERVER_SECONDS
+    while time.time() < deadline:
+        try:
+            with urlopen(f"{ENV_BASE_URL}/health", timeout=2) as resp:
+                if getattr(resp, "status", 200) == 200:
+                    break
+        except (URLError, HTTPError):
+            pass
+        time.sleep(WAIT_FOR_SERVER_POLL_SECONDS)
     for trajectory_idx in range(1, trajectories + 1):
-        env = RouteEnv(base_url="http://localhost:8000")
+        env = RouteEnv(base_url=ENV_BASE_URL)
         run_trajectory(env, trajectory_idx)
 
 

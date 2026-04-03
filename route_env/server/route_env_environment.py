@@ -7,8 +7,8 @@
 """Route dispatch optimization environment implementation."""
 
 import math
+import os
 import random
-from dataclasses import dataclass
 from uuid import uuid4
 
 from openenv.core.env_server.interfaces import Environment
@@ -16,19 +16,12 @@ from openenv.core.env_server.types import State
 
 try:
     from ..models import RouteAction, RouteObservation
+    from ..tasks import TASKS, TASK_ORDER, TaskConfig
+    from ..grader import score_episode
 except ImportError:
     from models import RouteAction, RouteObservation
-
-
-@dataclass
-class TaskConfig:
-    name: str
-    horizon_steps: int
-    node_count: int
-    max_shift_hours: float
-    base_lambda: float
-    lateness_budget: float
-    distance_scale: float
+    from tasks import TASKS, TASK_ORDER, TaskConfig
+    from grader import score_episode
 
 
 class RouteEnvironment(Environment):
@@ -40,11 +33,8 @@ class RouteEnvironment(Environment):
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._rng = random.Random()
         self._task_idx = -1
-        self._tasks = [
-            TaskConfig("easy", 60, 6, 8.0, 1.2, 0.45, 8.0),
-            TaskConfig("medium", 84, 8, 9.0, 1.8, 0.32, 10.0),
-            TaskConfig("hard", 108, 10, 10.0, 2.4, 0.24, 12.0),
-        ]
+        self._tasks = [TASKS[name] for name in TASK_ORDER]
+        self._base_seed = int(os.getenv("SEED", "42"))
         self._max_fare = 60.0
         self._max_distance = 20.0
         self._reset_internal()
@@ -135,12 +125,12 @@ class RouteEnvironment(Environment):
         self._spawn_rides()
 
     def _grader_score(self) -> float:
-        denominator = max(1, self._state.step_count)
-        ride_efficiency = self._completed_rides / denominator
-        punctuality = 1.0 - (self._late_rides / max(1, self._completed_rides))
-        reward_quality = (self._total_reward / max(1.0, float(self._state.step_count))) + 0.5
-        normalized = 0.45 * ride_efficiency + 0.35 * max(0.0, punctuality) + 0.20 * max(0.0, reward_quality)
-        return float(min(1.0, max(0.0, normalized)))
+        return score_episode(
+            step_count=self._state.step_count,
+            completed_rides=self._completed_rides,
+            late_rides=self._late_rides,
+            total_reward=self._total_reward,
+        )
 
     def _build_observation(
         self, reward: float, done: bool, last_action_error: str | None
@@ -165,13 +155,22 @@ class RouteEnvironment(Environment):
                 "late_rides": self._late_rides,
                 "total_fare": round(self._total_fare, 2),
                 "empty_distance": round(self._empty_distance, 2),
+                "grader_score_0_to_1": round(self._grader_score(), 4),
             },
         )
 
-    def reset(self) -> RouteObservation:
-        self._task_idx = (self._task_idx + 1) % len(self._tasks)
+    def reset(
+        self,
+        task_name: str | None = None,
+        seed: int | None = None,
+    ) -> RouteObservation:
+        if task_name is not None and task_name in TASKS:
+            self._task_idx = TASK_ORDER.index(task_name)
+        else:
+            self._task_idx = (self._task_idx + 1) % len(self._tasks)
         self._state = State(episode_id=str(uuid4()), step_count=0)
-        self._rng.seed(self._state.episode_id)
+        effective_seed = self._base_seed + self._task_idx if seed is None else seed
+        self._rng.seed(effective_seed)
         self._reset_internal()
         return self._build_observation(reward=0.0, done=False, last_action_error=None)
 
