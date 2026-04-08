@@ -41,13 +41,15 @@ app = create_app(
 )
 
 
-# ── /tasks endpoint ───────────────────────────────────────────────────────────
-# The OpenEnv validator calls GET /tasks to discover available tasks and
-# confirm that at least 3 are registered.
+class GraderRequest(BaseModel):
+    task_name: str
+    step_count: int = 0
+    completed_rides: int = 0
+    late_rides: int = 0
+    total_reward: float = 0.0
 
-@app.get("/tasks")
-def list_tasks():
-    """Return all registered tasks with their configurations."""
+
+def _tasks_response():
     return {
         "tasks": [
             {
@@ -62,21 +64,7 @@ def list_tasks():
     }
 
 
-# ── /grader endpoint ──────────────────────────────────────────────────────────
-# The OpenEnv validator calls POST /grader to verify that scores are strictly
-# in (0, 1) for each task.
-
-class GraderRequest(BaseModel):
-    task_name: str
-    step_count: int = 0
-    completed_rides: int = 0
-    late_rides: int = 0
-    total_reward: float = 0.0
-
-
-@app.post("/grader")
-def grade(request: GraderRequest):
-    """Score one episode. Returns a float strictly in (0.0, 1.0)."""
+def _grade_response(request: GraderRequest):
     if request.task_name not in TASKS:
         raise HTTPException(
             status_code=400,
@@ -88,12 +76,21 @@ def grade(request: GraderRequest):
         late_rides=request.late_rides,
         total_reward=request.total_reward,
     )
-    # Belt-and-suspenders: guarantee strictly (0, 1) before returning
     assert 0.0 < score < 1.0, f"Grader returned out-of-range score: {score}"
-    return {
-        "task_name": request.task_name,
-        "score": score,
-    }
+    return {"task_name": request.task_name, "score": score}
+
+
+# Register at both prefixes — HF Space proxies /web/, validator may hit either
+@app.get("/tasks")
+@app.get("/web/tasks")
+def list_tasks():
+    return _tasks_response()
+
+
+@app.post("/grader")
+@app.post("/web/grader")
+def grade(request: GraderRequest):
+    return _grade_response(request)
 
 
 def main() -> None:
