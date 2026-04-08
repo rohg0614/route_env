@@ -14,14 +14,10 @@ from uuid import uuid4
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
-try:
-    from ..models import RouteAction, RouteObservation
-    from ..tasks import TASKS, TASK_ORDER, TaskConfig
-    from ..grader import score_episode
-except ImportError:
-    from models import RouteAction, RouteObservation
-    from tasks import TASKS, TASK_ORDER, TaskConfig
-    from grader import score_episode
+# Flat structure — all modules are at repo root
+from models import RouteAction, RouteObservation
+from tasks import TASKS, TASK_ORDER, TaskConfig
+from grader import score_episode
 
 
 class RouteEnvironment(Environment):
@@ -137,11 +133,11 @@ class RouteEnvironment(Environment):
     ) -> RouteObservation:
         theta = 2 * math.pi * (self._sim_hour / 24.0)
         return RouteObservation(
-            task_name=self._task.name,  # type: ignore[arg-type]
+            task_name=self._task.name,
             current_node=self._driver_node,
             time_of_day_sin=round(math.sin(theta), 6),
             time_of_day_cos=round(math.cos(theta), 6),
-            driver_status=self._driver_status,  # type: ignore[arg-type]
+            driver_status=self._driver_status,
             shift_hours_remaining=round(self._shift_hours_remaining, 3),
             live_demand_matrix=self._live_demand(),
             available_rides=self._rides_at_current_node(),
@@ -174,7 +170,7 @@ class RouteEnvironment(Environment):
         self._reset_internal()
         return self._build_observation(reward=0.0, done=False, last_action_error=None)
 
-    def step(self, action: RouteAction) -> RouteObservation:  # type: ignore[override]
+    def step(self, action: RouteAction) -> RouteObservation:
         reward = 0.0
         last_action_error: str | None = None
         did_reposition = 0.0
