@@ -162,20 +162,16 @@ Space metadata:
 
 ## Project Structure
 
-```
-route_env/
-├── __init__.py
-├── client.py
-├── models.py
-├── tasks.py
-├── grader.py
-├── inference.py
-├── baseline_benchmark.py
-├── openenv.yaml
-├── pyproject.toml
-├── uv.lock
-└── server/
-    ├── app.py
-    ├── route_env_environment.py
-    └── Dockerfile
-```
+```text
+route_env/ (Root)
+├── Dockerfile            # Root-level build config
+├── pyproject.toml        # Dependency & package config
+├── openenv.yaml          # Validator spec
+├── inference.py          # LLM-driven baseline agent
+├── client.py             # Environment client logic
+├── models.py             # Shared data schemas
+├── tasks.py              # Difficulty presets
+├── grader.py             # Deterministic scoring logic
+└── server/               # Environment server implementation
+    ├── app.py            # FastAPI entry point
+    └── route_env_environment.py
