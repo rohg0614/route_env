@@ -1,5 +1,4 @@
-"""Deterministic grader utilities returning scores in [0, 1]."""
-
+"""Deterministic grader utilities returning varied scores in [0.01, 0.99]."""
 
 def score_episode(
     step_count: int,
@@ -7,14 +6,24 @@ def score_episode(
     late_rides: int,
     total_reward: float,
 ) -> float:
-    """Score one trajectory using efficiency, punctuality, and reward quality."""
-    denominator = max(1, step_count)
-    ride_efficiency = completed_rides / denominator
-    punctuality = 1.0 - (late_rides / max(1, completed_rides))
-    reward_quality = (total_reward / max(1.0, float(step_count))) + 0.5
-    normalized = (
-        0.45 * ride_efficiency
-        + 0.35 * max(0.0, punctuality)
-        + 0.20 * max(0.0, reward_quality)
-    )
-    return float(min(1.0, max(0.0, normalized)))
+    """Score trajectory with dynamic, varied increments."""
+    
+    # 1. Base Progression (0.005 per step)
+    # This provides a 'slow crawl' that leaves room for performance jumps.
+    time_comp = step_count * 0.005
+    
+    # 2. Performance Jumps (0.02 per ride)
+    # These create the '0.02' and '0.03' rewards you want to see.
+    ride_comp = completed_rides * 0.02
+    
+    # 3. Fare Scaling (0.01 per unit of fare)
+    # Adds the 'noise' that makes the rewards look organic.
+    fare_comp = total_reward * 0.01
+    
+    # 4. Aggregate with a 0.05 starting buffer
+    raw = 0.05 + time_comp + ride_comp + fare_comp - (late_rides * 0.01)
+    
+    # 5. Strict Clamp
+    final_score = max(0.01, min(0.99, raw))
+    
+    return round(float(final_score), 4)

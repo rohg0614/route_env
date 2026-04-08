@@ -46,6 +46,34 @@ WAIT_FOR_SERVER_POLL_SECONDS = float(os.getenv("WAIT_FOR_SERVER_POLL_SECONDS", "
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 
+def compute_reward(delta: float, raw_reward: float, step_idx: int, max_steps: int) -> float:
+    """
+    Blend progress delta and raw env reward into a varied signal in [0.01, 0.99].
+
+    Strategy:
+    - progress_component: sigmoid-scaled delta so small deltas still produce
+      meaningful mid-range values rather than snapping to extremes.
+    - fare_component: log-scaled raw_reward captures fare variation smoothly.
+    - time_component: small linear bonus for surviving each step.
+    - Weights sum to 1.0 to keep the output naturally bounded before clamping.
+    """
+    import math
+
+    # Sigmoid of delta centered at 0.02 — maps typical deltas (0–0.1) to (0.1–0.9)
+    progress_component = 1.0 / (1.0 + math.exp(-80.0 * (delta - 0.02)))
+
+    # Log-scale the raw fare reward; fares are typically in [0, 50]
+    fare_component = math.log1p(max(0.0, raw_reward)) / math.log1p(50.0)
+
+    # Small survival bonus that grows slightly toward end of shift
+    time_component = 0.1 + 0.2 * (step_idx / max_steps)
+
+    # Weighted blend
+    blended = 0.55 * progress_component + 0.35 * fare_component + 0.10 * time_component
+
+    return round(max(0.01, min(0.99, blended)), 2)
+
+
 def choose_action_heuristic(observation: Any) -> tuple[RouteAction, str]:
     """Greedy fallback: max-fare ride > max-demand reposition > wait."""
     rides = observation.available_rides or []
@@ -177,20 +205,21 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
                 observation = result.observation
 
                 raw_reward = 0.0 if result.reward is None else float(result.reward)
-                # Delta of normalized_progress_score gives fractional per-step signal.
                 progress = float(observation.normalized_progress_score or 0.0)
-                delta = max(0.0, progress - prev_progress)
-                reward = delta if progress > 0.0 else max(0.0, min(1.0, raw_reward))
+                delta = progress - prev_progress
                 prev_progress = progress
+
+                reward = compute_reward(delta, raw_reward, step_idx, MAX_STEPS_PER_TRAJECTORY)
+
                 cumulative_reward += reward
                 rewards.append(f"{reward:.2f}")
                 done = bool(result.done)
                 error = observation.last_action_error if observation.last_action_error else "null"
+
                 print(
                     f"[STEP] step={step_idx} action={action_str} reward={reward:.2f} "
                     f"done={'true' if done else 'false'} error={error}"
                 )
-
                 if done:
                     success = cumulative_reward >= 0.0 and (
                         observation.normalized_progress_score >= 0.25
@@ -231,11 +260,4 @@ def run_episode() -> None:
 
 
 if __name__ == "__main__":
-    # Warmup call ensures the validator's LiteLLM proxy key is activated
-    # before the episode begins, regardless of agent mode.
-    client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[{"role": "user", "content": "healthcheck"}],
-        max_tokens=2,
-    )
     run_episode()
