@@ -31,5 +31,6 @@ server = "server.app:main"
 
 [tool.setuptools]
 include-package-data = true
-# Repo root is the package — server/ is a sub-package
 packages = ["server"]
+# This tells Python to treat these root-level files as part of the project
+py-modules = ["models", "tasks", "grader", "client"]
