@@ -1,6 +1,10 @@
 """Task presets for the route dispatch benchmark."""
 
 from dataclasses import dataclass
+from typing import Callable
+
+# 1. Import your grader function
+from .grader import score_episode
 
 
 @dataclass(frozen=True)
@@ -12,14 +16,15 @@ class TaskConfig:
     base_lambda: float
     lateness_budget: float
     distance_scale: float
+    # 2. Add the grader field to the dataclass
+    grader: Callable[..., float]
 
 
+# 3. Attach the grader to all three tasks
 TASKS: dict[str, TaskConfig] = {
-    "easy": TaskConfig("easy", 60, 6, 8.0, 1.2, 0.45, 8.0),
-    "medium": TaskConfig("medium", 84, 8, 9.0, 1.8, 0.32, 10.0),
-    # Hard: more nodes, tighter lateness budget, higher demand variance,
-    # longer horizon — designed so a greedy heuristic scores below 0.5.
-    "hard": TaskConfig("hard", 120, 12, 10.0, 3.2, 0.15, 14.0),
+    "easy": TaskConfig("easy", 60, 6, 8.0, 1.2, 0.45, 8.0, grader=score_episode),
+    "medium": TaskConfig("medium", 84, 8, 9.0, 1.8, 0.32, 10.0, grader=score_episode),
+    "hard": TaskConfig("hard", 120, 12, 10.0, 3.2, 0.15, 14.0, grader=score_episode),
 }
 
 TASK_ORDER = ["easy", "medium", "hard"]

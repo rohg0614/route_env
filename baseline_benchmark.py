@@ -1,19 +1,15 @@
 """Deterministic baseline benchmark across easy/medium/hard tasks."""
 
 import os
-import sys
 import json
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
-from pathlib import Path
 from statistics import mean
 
-try:
-    from route_env import RouteAction, RouteEnv
-except ModuleNotFoundError:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from route_env import RouteAction, RouteEnv
+# Flat repo structure — all modules at repo root
+from client import RouteEnv
+from models import RouteAction
 
 
 def choose_heuristic_action(observation) -> RouteAction:

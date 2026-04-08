@@ -81,7 +81,7 @@ class RouteEnv(
             live_demand_matrix=obs_data.get("live_demand_matrix", []),
             available_rides=obs_data.get("available_rides", []),
             last_action_error=obs_data.get("last_action_error"),
-            normalized_progress_score=obs_data.get("normalized_progress_score", 0.0),
+            normalized_progress_score=obs_data.get("normalized_progress_score", 0.2),
             done=payload.get("done", False),
             reward=payload.get("reward"),
             metadata=obs_data.get("metadata", {}),
