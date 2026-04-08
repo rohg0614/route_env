@@ -149,7 +149,7 @@ def choose_action_with_openllm(
         return choose_action_heuristic(observation)
 
 
-def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float]:
+def run_trajectory(env: RouteEnv, trajectory_idx: int, task_name: str = "easy") -> tuple[bool, int, float]:
     model_name = MODEL_NAME
     rewards: list[str] = []
     prev_progress = 0.0
@@ -163,7 +163,7 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
 
     try:
         with env.sync() as client:
-            reset_result = client.reset()
+            reset_result = client.reset(task_name=task_name)
             observation = reset_result.observation
             
             # 1. Fetch the exact task name from the server (e.g., "easy", "medium", "hard")
@@ -195,9 +195,11 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
                 done = bool(result.done)
                 error = observation.last_action_error if observation.last_action_error else "null"
                 
+                score = sum(float(r) for r in rewards) / len(rewards) if rewards else 0.0
+                score = max(0.01, min(0.99, score))
                 print(
-                    f"[STEP] step={step_idx} action={action_str} reward={reward:.2f} "
-                    f"done={'true' if done else 'false'} error={error}"
+                    f"[END] success={'true' if success else 'false'} steps={step_idx} "
+                    f"score={score:.2f} rewards={','.join(rewards)}"
                 )
 
                 if done:
@@ -228,7 +230,7 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
 
 
 def run_episode() -> None:
-    trajectories = 1 if STRICT_SINGLE_EPISODE else max(1, NUM_TRAJECTORIES)
+    task_names = ["easy", "medium", "hard"]
     deadline = time.time() + WAIT_FOR_SERVER_SECONDS
     while time.time() < deadline:
         try:
@@ -238,13 +240,13 @@ def run_episode() -> None:
         except (URLError, HTTPError):
             pass
         time.sleep(WAIT_FOR_SERVER_POLL_SECONDS)
-    for trajectory_idx in range(1, trajectories + 1):
+    for trajectory_idx, task_name in enumerate(task_names, 1):
         env = (
             RouteEnv.from_docker_image(LOCAL_IMAGE_NAME)
             if LOCAL_IMAGE_NAME
             else RouteEnv(base_url=ENV_BASE_URL)
         )
-        run_trajectory(env, trajectory_idx)
+        run_trajectory(env, trajectory_idx, task_name=task_name)
 
 
 if __name__ == "__main__":
