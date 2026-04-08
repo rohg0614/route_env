@@ -1,14 +1,60 @@
-spec_version: 1
-name: route_env
-type: space
-runtime: fastapi
-app: server.app:app
-port: 7860
+name: Route Dispatch Environment
+description: >
+  An OpenEnv-compliant environment for ride-dispatch route optimization.
+  An agent receives a graph observation and must decide to wait, reposition,
+  or accept a ride to maximize fare collection within a shift.
+version: "1.0.0"
+author: YourName
+
+observation_space:
+  type: text
+  description: >
+    Graph state with current node, time of day, shift hours remaining,
+    live demand matrix, and available rides at the current node.
+
+action_space:
+  type: discrete
+  actions:
+    - wait
+    - reposition
+    - accept_ride
+  description: >
+    Dispatch decision for the current driver state.
+
+endpoints:
+  health: /
+  reset:  /reset
+  step:   /step
+  state:  /state
 
 tasks:
-  - name: easy
-    grader: grader:get_grader
-  - name: medium
-    grader: grader:get_grader
-  - name: hard
-    grader: grader:get_grader
+  - id: easy
+    description: >
+      Simple 6-node graph, 60-step horizon, relaxed lateness budget.
+      Agent should accept nearby high-fare rides.
+    steps: 60
+    ideal_action: accept_ride
+
+  - id: medium
+    description: >
+      Medium 8-node graph, 84-step horizon, moderate lateness budget.
+      Agent should balance repositioning with ride acceptance.
+    steps: 84
+    ideal_action: accept_ride
+
+  - id: hard
+    description: >
+      Large 12-node graph, 120-step horizon, tight lateness budget.
+      Agent should proactively reposition to high-demand nodes.
+    steps: 120
+    ideal_action: accept_ride
+
+scoring:
+  reward_range: [0.0, 1.0]
+  success_threshold: 0.5
+  score_formula: mean(step_rewards)
+
+constraints:
+  max_runtime_seconds: 1200
+  max_memory_gb: 8
+  max_vcpu: 2
