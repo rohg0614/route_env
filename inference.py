@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 from urllib.error import HTTPError, URLError
@@ -155,14 +156,22 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
     success = False
     step_idx = 0
     cumulative_reward = 0.0
-    task_label = f"trajectory_{trajectory_idx}"
-    print(f"[START] task={task_label} env=route_env model={model_name}")
+    
+    # Fallback task name in case connection fails
+    actual_task_name = f"trajectory_{trajectory_idx}"
+    start_printed = False
 
     try:
         with env.sync() as client:
             reset_result = client.reset()
             observation = reset_result.observation
-            task_label = f"{observation.task_name}_traj{trajectory_idx}"
+            
+            # 1. Fetch the exact task name from the server (e.g., "easy", "medium", "hard")
+            actual_task_name = getattr(observation, "task_name", actual_task_name)
+            
+            # 2. Print the START line using the exact name AFTER the reset
+            print(f"[START] task={actual_task_name} env=route_env model={model_name}")
+            start_printed = True
 
             while step_idx < MAX_STEPS_PER_TRAJECTORY:
                 step_idx += 1
@@ -177,7 +186,6 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
                 observation = result.observation
 
                 raw_reward = 0.0 if result.reward is None else float(result.reward)
-                # Delta of normalized_progress_score gives fractional per-step signal.
                 progress = float(observation.normalized_progress_score or 0.0)
                 delta = max(0.0, progress - prev_progress)
                 reward = delta if progress > 0.0 else max(0.0, min(1.0, raw_reward))
@@ -186,6 +194,7 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
                 rewards.append(f"{reward:.2f}")
                 done = bool(result.done)
                 error = observation.last_action_error if observation.last_action_error else "null"
+                
                 print(
                     f"[STEP] step={step_idx} action={action_str} reward={reward:.2f} "
                     f"done={'true' if done else 'false'} error={error}"
@@ -199,9 +208,17 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int) -> tuple[bool, int, float
 
         if not success and step_idx >= MAX_STEPS_PER_TRAJECTORY:
             success = cumulative_reward >= 0.0
-    except Exception:
+            
+    except Exception as e:
+        # Print to stderr so you can see connection errors locally without breaking OpenEnv validator
+        print(f"Error during execution: {e}", file=sys.stderr)
         success = False
+        
     finally:
+        # Guarantee the START line prints even if the connection fails instantly
+        if not start_printed:
+            print(f"[START] task={actual_task_name} env=route_env model={model_name}")
+            
         print(
             f"[END] success={'true' if success else 'false'} steps={step_idx} "
             f"rewards={','.join(rewards)}"
