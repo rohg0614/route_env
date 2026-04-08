@@ -160,10 +160,15 @@ class RouteEnvironment(Environment):
         task_name: str | None = None,
         seed: int | None = None,
     ) -> RouteObservation:
-        # ... [existing code] ...
+        if task_name is not None and task_name in TASKS:
+            self._task_idx = TASK_ORDER.index(task_name)
+        else:
+            self._task_idx = (self._task_idx + 1) % len(self._tasks)
+        self._state = State(episode_id=str(uuid4()), step_count=0)
+        effective_seed = self._base_seed + self._task_idx if seed is None else seed
+        self._rng.seed(effective_seed)
         self._reset_internal()
-        # CHANGE: Update 0.0 to 0.01
-        return self._build_observation(reward=0.01, done=False, last_action_error=None)
+        return self._build_observation(reward=0.0, done=False, last_action_error=None)
 
     def step(self, action: RouteAction) -> RouteObservation:
         reward = 0.0
@@ -181,7 +186,7 @@ class RouteEnvironment(Environment):
                 done=True,
                 last_action_error="shift_exhausted",
             )
-            self._total_reward += 0.01
+            self._total_reward += -1.0
             return obs
 
         if action.action_type == "wait":
@@ -239,7 +244,7 @@ class RouteEnvironment(Environment):
         if completed_ride == 1.0:
             reward += 2.0 * math.exp(-0.1 * waiting_time)
         reward -= 1.5 * late_penalty
-        reward = max(0.01, min(0.99, reward))
+
         self._advance_time()
         done = (
             self._state.step_count >= self._task.horizon_steps

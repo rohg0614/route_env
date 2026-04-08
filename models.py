@@ -56,6 +56,6 @@ class RouteObservation(Observation):
         description="Raw error for invalid or impossible action.",
     )
     normalized_progress_score: float = Field(
-        default=0.02,
+        default=0.0,
         description="Task grader score in [0,1] based on current trajectory.",
     )
