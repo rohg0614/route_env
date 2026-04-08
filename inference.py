@@ -156,21 +156,15 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int, task_name: str = "easy") 
     success = False
     step_idx = 0
     cumulative_reward = 0.0
-    
-    # Fallback task name in case connection fails
-    actual_task_name = f"trajectory_{trajectory_idx}"
+    actual_task_name = task_name
     start_printed = False
 
     try:
         with env.sync() as client:
             reset_result = client.reset(task_name=task_name)
             observation = reset_result.observation
-            
-            # 1. Fetch the exact task name from the server (e.g., "easy", "medium", "hard")
-            actual_task_name = getattr(observation, "task_name", actual_task_name)
-            
-            # 2. Print the START line using the exact name AFTER the reset
-            print(f"[START] task={actual_task_name} env=route_env model={model_name}")
+            actual_task_name = getattr(observation, "task_name", task_name)
+            print(f"[START] task={actual_task_name} env=route_env model={model_name}", flush=True)
             start_printed = True
 
             while step_idx < MAX_STEPS_PER_TRAJECTORY:
@@ -194,12 +188,12 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int, task_name: str = "easy") 
                 rewards.append(f"{reward:.2f}")
                 done = bool(result.done)
                 error = observation.last_action_error if observation.last_action_error else "null"
-                
-                score = sum(float(r) for r in rewards) / len(rewards) if rewards else 0.0
-                score = max(0.01, min(0.99, score))
+
+                # ✅ [STEP] goes here — one per step
                 print(
-                    f"[END] success={'true' if success else 'false'} steps={step_idx} "
-                    f"score={score:.2f} rewards={','.join(rewards)}"
+                    f"[STEP] step={step_idx} action={action_str} reward={reward:.2f} "
+                    f"done={'true' if done else 'false'} error={error}",
+                    flush=True
                 )
 
                 if done:
@@ -210,20 +204,22 @@ def run_trajectory(env: RouteEnv, trajectory_idx: int, task_name: str = "easy") 
 
         if not success and step_idx >= MAX_STEPS_PER_TRAJECTORY:
             success = cumulative_reward >= 0.0
-            
+
     except Exception as e:
-        # Print to stderr so you can see connection errors locally without breaking OpenEnv validator
         print(f"Error during execution: {e}", file=sys.stderr)
         success = False
-        
+
     finally:
-        # Guarantee the START line prints even if the connection fails instantly
         if not start_printed:
-            print(f"[START] task={actual_task_name} env=route_env model={model_name}")
-            
+            print(f"[START] task={actual_task_name} env=route_env model={model_name}", flush=True)
+
+        # ✅ [END] goes here — once per trajectory, with score=
+        score = sum(float(r) for r in rewards) / len(rewards) if rewards else 0.001
+        score = max(0.001, min(0.999, score))
         print(
             f"[END] success={'true' if success else 'false'} steps={step_idx} "
-            f"rewards={','.join(rewards)}"
+            f"score={score:.3f} rewards={','.join(rewards)}",
+            flush=True
         )
 
     return success, step_idx, cumulative_reward
