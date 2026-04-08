@@ -5,3 +5,10 @@ runtime: fastapi
 app: server.app:app
 port: 7860
 
+tasks:
+  - name: easy
+    grader: grader:get_grader
+  - name: medium
+    grader: grader:get_grader
+  - name: hard
+    grader: grader:get_grader
