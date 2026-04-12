@@ -31,6 +31,19 @@ It is designed for evaluating policy reasoning under:
 - dense but multi-objective reward shaping,
 - realistic tradeoffs (profit vs. efficiency vs. punctuality).
 
+## Episode Flow
+sequenceDiagram
+    participant A as LLM Agent
+    participant E as RouteEnv
+    A->>E: reset(task="hard")
+    E-->>A: observation (zone, rides, demand, supply_pressure)
+    loop Every Step (up to 120)
+        A->>A: reason about wait_time, fare, net_opportunity
+        A->>E: step(accept_ride | reposition | wait)
+        E-->>A: reward + next observation + normalized_progress_score
+    end
+    E-->>A: done=true, final score
+
 ## Action and Observation Spaces
 
 ### Action (`RouteAction`)
