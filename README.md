@@ -32,6 +32,8 @@ It is designed for evaluating policy reasoning under:
 - realistic tradeoffs (profit vs. efficiency vs. punctuality).
 
 ## Episode Flow
+
+```mermaid
 sequenceDiagram
     participant A as LLM Agent
     participant E as RouteEnv
@@ -43,7 +45,7 @@ sequenceDiagram
         E-->>A: reward + next observation + normalized_progress_score
     end
     E-->>A: done=true, final score
-
+```
 ## Action and Observation Spaces
 
 ### Action (`RouteAction`)
